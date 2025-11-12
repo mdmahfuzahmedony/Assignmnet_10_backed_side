@@ -1,19 +1,20 @@
-const express = require('express');
-const cors = require('cors');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const express = require("express");
+const cors = require("cors");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 2001;
+require("dotenv").config();
 
 app.use(express.json());
 app.use(cors());
-
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
 
-const uri =
-  "mongodb+srv://assignment10:iXTjod3IWq2Nd57r@cluster0.awjlwox.mongodb.net/?appName=Cluster0";
+const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.awjlwox.mongodb.net/?appName=Cluster0`;
+// console.log(process.env.DB_USERNAME);
+// console.log(process.env.DB_PASSWORD);
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -24,7 +25,9 @@ const client = new MongoClient(uri, {
 });
 
 async function run() {
-  try { await client.connect(); const db = client.db("assignment10");
+  try {
+    await client.connect();
+    const db = client.db("assignment10");
     const carCollection = db.collection("carProudct");
     const bookingCollection = db.collection("bookings");
     const newsandarticle = db.collection("newsandarticle");
@@ -195,17 +198,14 @@ async function run() {
       }
     });
 
-
     app.post("/bookings", async (req, res) => {
       try {
         const booking = req.body;
         const result = await bookingCollections.insertOne(booking);
-        res
-          .status(201)
-          .send({
-            message: "Booking successful!",
-            insertedId: result.insertedId,
-          });
+        res.status(201).send({
+          message: "Booking successful!",
+          insertedId: result.insertedId,
+        });
       } catch (error) {
         console.error("Error creating booking:", error);
         res
@@ -244,6 +244,6 @@ async function run() {
 
 run().catch(console.dir);
 
-app.listen(port, ()=> {
-    console.log(`app is running on port ${port}`);
-})
+app.listen(port, () => {
+  console.log(`app is running on port ${port}`);
+});
