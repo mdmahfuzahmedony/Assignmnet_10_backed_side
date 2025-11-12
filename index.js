@@ -26,7 +26,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const db = client.db("assignment10");
     const carCollection = db.collection("carProudct");
     const bookingCollection = db.collection("bookings");
@@ -237,7 +237,7 @@ async function run() {
     });
 
     // await client.db("admin").command({ ping: 1 });
-    // console.log("✅ Connected to MongoDB successfully!");
+    console.log("✅ Connected to MongoDB successfully!");
   } finally {
   }
 }
