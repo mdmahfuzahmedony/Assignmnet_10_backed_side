@@ -13,8 +13,6 @@ app.get("/", (req, res) => {
 });
 
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.awjlwox.mongodb.net/?appName=Cluster0`;
-// console.log(process.env.DB_USERNAME);
-// console.log(process.env.DB_PASSWORD);
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -26,13 +24,12 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // await client.connect();
+  
     const db = client.db("assignment10");
     const carCollection = db.collection("carProudct");
-    const bookingCollection = db.collection("bookings");
+    const bookingCollection = db.collection("bookings"); 
     const newsandarticle = db.collection("newsandarticle");
     const testimonialCollection = db.collection("testimonials");
-    const bookingCollections = db.collection("bookings");
 
     // Get all cars
     app.get("/carProduct", async (req, res) => {
@@ -44,6 +41,7 @@ async function run() {
     // Get single car details
     app.get("/cardetails/:id", async (req, res) => {
       const { id } = req.params;
+      console.log(`Fetching car details for ID: ${id}`);
       try {
         const result = await carCollection.findOne({ _id: new ObjectId(id) });
         if (result) {
@@ -82,6 +80,7 @@ async function run() {
       console.log(`Attempting to update car with ID: ${id}`);
       console.log("Updated data:", updatedCarData);
 
+      // _id, providerName, providerEmail should not be updated from client-side usually
       delete updatedCarData.providerName;
       delete updatedCarData.providerEmail;
       delete updatedCarData._id;
@@ -126,7 +125,7 @@ async function run() {
       }
     });
 
-    // Provider-wise car fetch
+   
     app.get("/my-cars/:email", async (req, res) => {
       const email = req.params.email;
       console.log(`Fetching cars for provider: ${email}`);
@@ -143,11 +142,24 @@ async function run() {
       }
     });
 
+
+
+  
     app.post("/bookings", async (req, res) => {
       const booking = req.body;
       console.log("Received new booking:", booking);
 
       try {
+
+        const existingBooking = await bookingCollection.findOne({
+          carId: booking.carId,
+          userEmail: booking.userEmail,
+        });
+
+        if (existingBooking) {
+          return res.status(409).send({ message: "You have already booked this car." });
+        }
+
         const result = await bookingCollection.insertOne(booking);
         res.status(201).send({
           message: "Booking added successfully!",
@@ -161,26 +173,43 @@ async function run() {
       }
     });
 
-    // Get all bookings for a specific user
-    app.get("/bookings/:email", async (req, res) => {
+
+    app.get("/bookings/user/:email", async (req, res) => { 
       const email = req.params.email;
-      console.log("Fetching bookings for:", email);
+      console.log(`Fetching bookings for user: ${email}`);
 
       try {
         const query = { userEmail: email };
         const result = await bookingCollection.find(query).toArray();
         res.send(result);
       } catch (error) {
-        console.error("Error fetching bookings:", error);
+        console.error("Error fetching user bookings:", error);
         res
           .status(500)
           .send({ message: "Failed to fetch bookings", error: error.message });
       }
     });
 
+
+    app.get("/bookings", async (req, res) => {
+      const email = req.query.email;
+      console.log("📩 Fetch request for bookings. Email query:", email);
+
+      const query = email ? { userEmail: email } : {};
+      try {
+        const result = await bookingCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Error fetching all bookings or by query:", error);
+        res.status(500).send({ message: "Failed to fetch bookings." });
+      }
+    });
+
+
     // Delete booking by ID
     app.delete("/bookings/:id", async (req, res) => {
       const { id } = req.params;
+      console.log(`Attempting to delete booking with ID: ${id}`);
       try {
         const result = await bookingCollection.deleteOne({
           _id: new ObjectId(id),
@@ -196,31 +225,6 @@ async function run() {
           .status(500)
           .send({ message: "Failed to cancel booking", error: error.message });
       }
-    });
-
-    app.post("/bookings", async (req, res) => {
-      try {
-        const booking = req.body;
-        const result = await bookingCollections.insertOne(booking);
-        res.status(201).send({
-          message: "Booking successful!",
-          insertedId: result.insertedId,
-        });
-      } catch (error) {
-        console.error("Error creating booking:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to create booking", error: error.message });
-      }
-    });
-
-    app.get("/bookings", async (req, res) => {
-      const email = req.query.email;
-      console.log("📩 Fetch request for email:", email);
-
-      const query = email ? { userEmail: email } : {};
-      const result = await bookingCollection.find(query).toArray();
-      res.send(result);
     });
 
     // News & Articles
@@ -239,11 +243,12 @@ async function run() {
     // await client.db("admin").command({ ping: 1 });
     console.log("✅ Connected to MongoDB successfully!");
   } finally {
+    // await client.close(); // Not closing here, let the app keep connection open
   }
 }
 
 run().catch(console.dir);
 
 app.listen(port, () => {
-  console.log(`app is running on port ${port}`);
+  console.log(`App is running on port ${port}`);
 });
