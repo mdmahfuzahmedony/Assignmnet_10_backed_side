@@ -28,9 +28,6 @@ async function run() {
     const newsandarticle = db.collection("newsandarticle");
     const testimonialCollection = db.collection("testimonials");
 
-    // ---------------------------------------------------------
-    // CAR ROUTES (গাড়ি সংক্রান্ত রুট)
-    // ---------------------------------------------------------
 
     // ১. সব গাড়ি অথবা ইমেইল দিয়ে ফিল্টার করা গাড়ি আনা (My Listing এর জন্য)
     app.get("/carProduct", async (req, res) => {
@@ -105,9 +102,7 @@ async function run() {
       }
     });
 
-    // ---------------------------------------------------------
-    // BOOKING ROUTES (বুকিং সংক্রান্ত রুট)
-    // ---------------------------------------------------------
+  
 
     // ৬. বুকিং সেভ করা (ডুপ্লিকেট চেকসহ)
     app.post("/bookings", async (req, res) => {
