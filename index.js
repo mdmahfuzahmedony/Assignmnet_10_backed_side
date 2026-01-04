@@ -1,16 +1,14 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const app = express();
-const port = process.env.PORT || 2001;
 require("dotenv").config();
 
+const app = express();
+const port = process.env.PORT || 2001;
+
+// Middleware
 app.use(express.json());
 app.use(cors());
-
-app.get("/", (req, res) => {
-  res.send("Hello World!");
-});
 
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.awjlwox.mongodb.net/?appName=Cluster0`;
 
@@ -24,231 +22,159 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-  
     const db = client.db("assignment10");
-    const carCollection = db.collection("carProudct");
-    const bookingCollection = db.collection("bookings"); 
+    const carCollection = db.collection("carProudct"); // আপনার বানান অনুযায়ী
+    const bookingCollection = db.collection("bookings");
     const newsandarticle = db.collection("newsandarticle");
     const testimonialCollection = db.collection("testimonials");
 
-    // Get all cars
+    // ---------------------------------------------------------
+    // CAR ROUTES (গাড়ি সংক্রান্ত রুট)
+    // ---------------------------------------------------------
+
+    // ১. সব গাড়ি অথবা ইমেইল দিয়ে ফিল্টার করা গাড়ি আনা (My Listing এর জন্য)
     app.get("/carProduct", async (req, res) => {
-      const result = await carCollection.find().toArray();
-      res.send(result);
-      console.log("Fetched all car products.");
+      const email = req.query.email; // ফ্রন্টএন্ড থেকে আসা ইমেইল কুয়েরি
+      let query = {};
+      if (email) {
+        query = { providerEmail: email }; // শুধু ওই ইউজারের গাড়ি খুঁজবে
+      }
+      try {
+        const result = await carCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching cars" });
+      }
     });
 
-    // Get single car details
+    // ২. সিঙ্গেল গাড়ি ডিটেইলস
     app.get("/cardetails/:id", async (req, res) => {
-      const { id } = req.params;
-      console.log(`Fetching car details for ID: ${id}`);
+      const id = req.params.id;
       try {
         const result = await carCollection.findOne({ _id: new ObjectId(id) });
-        if (result) {
-          res.send(result);
-        } else {
-          res.status(404).send({ message: "Car not found" });
-        }
+        if (result) res.send(result);
+        else res.status(404).send({ message: "Car not found" });
       } catch (error) {
-        console.error("Error fetching car details:", error);
-        res.status(500).send({ message: "Invalid ID format or server error" });
+        res.status(500).send({ message: "Invalid ID format" });
       }
     });
 
-    // Add new car
+    // ৩. নতুন গাড়ি অ্যাড করা
     app.post("/add-car", async (req, res) => {
       const car = req.body;
-      console.log("Received new car data:", car);
       try {
         const result = await carCollection.insertOne(car);
-        res.status(201).send({
-          message: "Car added successfully!",
-          insertedId: result.insertedId,
-        });
+        res.status(201).send({ insertedId: result.insertedId });
       } catch (error) {
-        console.error("Error adding car to database:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to add car", error: error.message });
+        res.status(500).send({ message: "Failed to add car" });
       }
     });
 
-    // Update car
+    // ৪. গাড়ি আপডেট করা
     app.put("/update-car/:id", async (req, res) => {
       const id = req.params.id;
-      const updatedCarData = req.body;
-      console.log(`Attempting to update car with ID: ${id}`);
-      console.log("Updated data:", updatedCarData);
-
-      // _id, providerName, providerEmail should not be updated from client-side usually
-      delete updatedCarData.providerName;
-      delete updatedCarData.providerEmail;
-      delete updatedCarData._id;
+      const updatedData = req.body;
+      // আইডি এবং ইমেইল যাতে আপডেট না হয়
+      delete updatedData._id;
+      delete updatedData.providerEmail;
 
       try {
         const query = { _id: new ObjectId(id) };
-        const updateDoc = { $set: { ...updatedCarData } };
+        const updateDoc = { $set: { ...updatedData } };
         const result = await carCollection.updateOne(query, updateDoc);
-
-        if (result.matchedCount === 0) {
-          res.status(404).send({ message: "Car not found" });
-        } else {
-          res.send({ message: "Car updated successfully!" });
-        }
+        res.send(result);
       } catch (error) {
-        console.error("Error updating car:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to update car", error: error.message });
+        res.status(500).send({ message: "Update failed" });
       }
     });
 
-    // Delete car
+    // ৫. গাড়ি ডিলিট করা (My Listing থেকে)
+  
+
     app.delete("/carProduct/:id", async (req, res) => {
       const id = req.params.id;
-      console.log(`Attempting to delete car with ID: ${id}`);
-
       try {
         const query = { _id: new ObjectId(id) };
         const result = await carCollection.deleteOne(query);
 
-        if (result.deletedCount === 1) {
-          res.send({ message: "Car deleted successfully!" });
-        } else {
-          res.status(404).send({ message: "Car not found or already deleted" });
-        }
-      } catch (error) {
-        console.error("Error deleting car:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to delete car", error: error.message });
-      }
-    });
-
-   
-    app.get("/my-cars/:email", async (req, res) => {
-      const email = req.params.email;
-      console.log(`Fetching cars for provider: ${email}`);
-
-      try {
-        const query = { providerEmail: email };
-        const result = await carCollection.find(query).toArray();
+        // সরাসরি result পাঠিয়ে দিন, যাতে deletedCount ফ্রন্টএন্ডে পাওয়া যায়
         res.send(result);
       } catch (error) {
-        console.error("Error fetching provider's cars:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to fetch cars", error: error.message });
+        console.error("Error deleting car:", error);
+        res.status(500).send({ message: "Failed to delete car", error: error.message });
       }
     });
 
+    // ---------------------------------------------------------
+    // BOOKING ROUTES (বুকিং সংক্রান্ত রুট)
+    // ---------------------------------------------------------
 
-
-  
+    // ৬. বুকিং সেভ করা (ডুপ্লিকেট চেকসহ)
     app.post("/bookings", async (req, res) => {
       const booking = req.body;
-      console.log("Received new booking:", booking);
-
       try {
-
-        const existingBooking = await bookingCollection.findOne({
+        const existing = await bookingCollection.findOne({
           carId: booking.carId,
           userEmail: booking.userEmail,
         });
-
-        if (existingBooking) {
-          return res.status(409).send({ message: "You have already booked this car." });
+        if (existing) {
+          return res.status(409).send({ message: "Already booked!" });
         }
-
         const result = await bookingCollection.insertOne(booking);
-        res.status(201).send({
-          message: "Booking added successfully!",
-          insertedId: result.insertedId,
-        });
-      } catch (error) {
-        console.error("Error saving booking:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to save booking", error: error.message });
-      }
-    });
-
-
-    app.get("/bookings/user/:email", async (req, res) => { 
-      const email = req.params.email;
-      console.log(`Fetching bookings for user: ${email}`);
-
-      try {
-        const query = { userEmail: email };
-        const result = await bookingCollection.find(query).toArray();
         res.send(result);
       } catch (error) {
-        console.error("Error fetching user bookings:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to fetch bookings", error: error.message });
+        res.status(500).send({ message: "Booking failed" });
       }
     });
 
-
+    // ৭. ইউজারের সব বুকিং দেখা (My Bookings এর জন্য)
     app.get("/bookings", async (req, res) => {
       const email = req.query.email;
-      console.log("📩 Fetch request for bookings. Email query:", email);
-
       const query = email ? { userEmail: email } : {};
       try {
         const result = await bookingCollection.find(query).toArray();
         res.send(result);
       } catch (error) {
-        console.error("Error fetching all bookings or by query:", error);
-        res.status(500).send({ message: "Failed to fetch bookings." });
+        res.status(500).send({ message: "Fetch failed" });
       }
     });
 
-
-    // Delete booking by ID
+    // ৮. বুকিং ক্যান্সেল/ডিলিট করা
     app.delete("/bookings/:id", async (req, res) => {
-      const { id } = req.params;
-      console.log(`Attempting to delete booking with ID: ${id}`);
+      const id = req.params.id;
       try {
-        const result = await bookingCollection.deleteOne({
-          _id: new ObjectId(id),
-        });
-        if (result.deletedCount === 1) {
-          res.send({ message: "Booking cancelled successfully!" });
-        } else {
-          res.status(404).send({ message: "Booking not found" });
-        }
+        const result = await bookingCollection.deleteOne({ _id: new ObjectId(id) });
+        res.send(result);
       } catch (error) {
-        console.error("Error deleting booking:", error);
-        res
-          .status(500)
-          .send({ message: "Failed to cancel booking", error: error.message });
+        res.status(500).send({ message: "Cancel failed" });
       }
     });
 
-    // News & Articles
+    // ---------------------------------------------------------
+    // OTHER ROUTES
+    // ---------------------------------------------------------
     app.get("/newsandarticle", async (req, res) => {
       const result = await newsandarticle.find().toArray();
       res.send(result);
     });
 
-    // Testimonials
     app.get("/testimonial", async (req, res) => {
-      const testimonialsResult = await testimonialCollection.find().toArray();
-      console.log("Fetched testimonials:", testimonialsResult);
-      res.send(testimonialsResult);
+      const result = await testimonialCollection.find().toArray();
+      res.send(result);
     });
 
-    // await client.db("admin").command({ ping: 1 });
-    console.log("✅ Connected to MongoDB successfully!");
-  } finally {
-    // await client.close(); // Not closing here, let the app keep connection open
+    console.log("✅ Connected to MongoDB!");
+  } catch (err) {
+    console.error("❌ MongoDB Connection Error:", err);
   }
 }
 
 run().catch(console.dir);
 
+app.get("/", (req, res) => {
+  res.send("Car Rental Server is running...");
+});
+
 app.listen(port, () => {
-  console.log(`App is running on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
